@@ -1,0 +1,13 @@
+{
+  "name": "mirroredu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MirrorEdu - a custom-branded chat interface powered by the Claude API",
+  "scripts": {
+    "import-export": "node scripts/import-claude-export.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.124.0",
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

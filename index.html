@@ -1,0 +1,36 @@
+<title>MirrorEdu - Sign In</title>
+<link rel="stylesheet" href="styles.css" />
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="brand">MirrorEdu</div>
+    <div class="brand-sub">Your personal AI chat</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-mode="signin">Sign In</button>
+      <button class="tab-btn" data-mode="signup">Sign Up</button>
+    </div>
+
+    <div id="error-box" class="error-box"></div>
+
+    <form id="auth-form">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required minlength="6" />
+      </div>
+      <button type="submit" class="btn" id="submit-btn">Sign In</button>
+    </form>
+
+    <div class="divider">or</div>
+
+    <button id="google-btn" class="btn btn-secondary">Continue with Google</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabaseClient.js"></script>
+<script src="js/auth.js"></script>
