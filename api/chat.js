@@ -1,6 +1,9 @@
 // POST /api/chat
-// Body: { conversationId: string|null, message: string, attachment?: { name, mimeType, data } }
-//   attachment.data is base64-encoded file content (no "data:" prefix).
+// Body: { conversationId: string|null, message: string, attachment?: { name, mimeType, url } }
+//   attachment.url is a Vercel Blob URL - the browser uploads there directly
+//   (see api/attachment-upload.js), this handler fetches the bytes itself
+//   and deletes the blob once it's read. Keeps the file off this request's
+//   body entirely, since Vercel functions cap that at 4.5MB.
 // Header: Authorization: Bearer <supabase access token>
 //
 // Verifies the caller, enforces the per-user daily message cap, calls the
@@ -8,6 +11,7 @@
 // ever read), streams the reply back as plain text, and persists both the
 // user's message and the assistant's reply to Supabase.
 const Anthropic = require('@anthropic-ai/sdk');
+const { del } = require('@vercel/blob');
 const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { verifyUser } = require('../lib/verifyUser');
 
@@ -26,8 +30,8 @@ const SYSTEM_PROMPT =
 const TOOLS = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
 
 // Claude reads PDFs and images natively in the same request - no separate
-// OCR/extraction step needed. Capped so the base64 JSON body stays under
-// Vercel's ~4.5MB request limit (base64 inflates raw bytes by ~1.33x).
+// OCR/extraction step needed. Matches api/attachment-upload.js's cap, which
+// leaves headroom under Anthropic's 32MB total-request limit for PDFs.
 const ALLOWED_ATTACHMENT_TYPES = new Set([
   'application/pdf',
   'image/png',
@@ -35,7 +39,7 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   'image/webp',
   'image/gif',
 ]);
-const MAX_ATTACHMENT_BASE64_CHARS = 4_200_000;
+const MAX_ATTACHMENT_BYTES = 28 * 1024 * 1024;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -76,19 +80,54 @@ module.exports = async function handler(req, res) {
 
   let attachmentBlock = null;
   if (attachment) {
-    const { name, mimeType, data } = attachment;
+    const { mimeType, url } = attachment;
     if (!mimeType || !ALLOWED_ATTACHMENT_TYPES.has(mimeType)) {
       res.status(400).json({ error: 'Unsupported attachment type. Attach a PDF or an image (PNG/JPEG/WEBP/GIF).' });
       return;
     }
-    if (!data || typeof data !== 'string' || data.length > MAX_ATTACHMENT_BASE64_CHARS) {
-      res.status(400).json({ error: 'That attachment is too large. Please attach a file under 3MB.' });
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      res.status(400).json({ error: 'Invalid attachment URL.' });
       return;
     }
+    // Only ever fetch from our own Vercel Blob store - never a client-
+    // supplied URL, which would otherwise be an SSRF hole.
+    if (!parsedUrl.hostname.endsWith('.public.blob.vercel-storage.com')) {
+      res.status(400).json({ error: 'Invalid attachment URL.' });
+      return;
+    }
+
+    let blobResponse;
+    try {
+      blobResponse = await fetch(parsedUrl);
+    } catch (fetchError) {
+      res.status(502).json({ error: `Failed to retrieve the attachment: ${fetchError.message}` });
+      return;
+    }
+    if (!blobResponse.ok) {
+      res.status(502).json({ error: `Failed to retrieve the attachment (${blobResponse.status}).` });
+      return;
+    }
+
+    const arrayBuffer = await blobResponse.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_ATTACHMENT_BYTES) {
+      res.status(400).json({ error: 'That attachment is too large.' });
+      del(url).catch(() => {});
+      return;
+    }
+
+    const data = Buffer.from(arrayBuffer).toString('base64');
     attachmentBlock =
       mimeType === 'application/pdf'
         ? { type: 'document', source: { type: 'base64', media_type: mimeType, data } }
         : { type: 'image', source: { type: 'base64', media_type: mimeType, data } };
+
+    // Single-use: delete now that it's been read into memory for this
+    // request. Fire-and-forget - cleanup shouldn't block the user's reply.
+    del(url).catch(() => {});
   }
 
   const supabaseAdmin = getSupabaseAdmin();

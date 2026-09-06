@@ -79,5 +79,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script type="module">
+  // Exposed as a global so the classic (non-module) js/chat.js can call it.
+  // Only referenced inside event handlers there, which run long after this
+  // module has finished loading, so the module/classic execution-order
+  // difference never matters in practice.
+  import { upload } from 'https://cdn.jsdelivr.net/npm/@vercel/blob@2.8.0/client/+esm';
+  window.vercelBlobUpload = upload;
+</script>
 <script src="js/supabaseClient.js"></script>
 <script src="js/chat.js"></script>

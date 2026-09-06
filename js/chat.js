@@ -53,9 +53,12 @@
   }
 
   // --- Attachments: Claude reads PDFs and images directly in the request
-  // (no separate OCR/scanning step), so this just gets the file to /api/chat
-  // as base64. Capped at 3MB raw so the base64 JSON body stays under
-  // Vercel's request size limit.
+  // (no separate OCR/scanning step needed). Files upload straight from the
+  // browser to Vercel Blob storage (see the module script in chat.html and
+  // api/attachment-upload.js) rather than through this server - Vercel
+  // functions cap request bodies at 4.5MB, which a real PDF blows past
+  // immediately. api/chat.js fetches the blob server-side when the message
+  // is sent, then deletes it; attachments are single-use.
   const ALLOWED_ATTACHMENT_TYPES = new Set([
     'application/pdf',
     'image/png',
@@ -63,11 +66,14 @@
     'image/webp',
     'image/gif',
   ]);
-  const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+  const MAX_ATTACHMENT_BYTES = 28 * 1024 * 1024; // matches api/attachment-upload.js
 
-  let pendingAttachment = null;
+  let pendingAttachment = null; // { name, mimeType, url }
+  let pendingUploadAbort = null;
 
   function clearAttachment() {
+    if (pendingUploadAbort) pendingUploadAbort.abort();
+    pendingUploadAbort = null;
     pendingAttachment = null;
     attachmentInputEl.value = '';
     attachmentPreviewEl.innerHTML = '';
@@ -75,16 +81,16 @@
     updateSendButtonState();
   }
 
-  function renderAttachmentChip() {
+  function renderAttachmentChip(name, statusText) {
     attachmentPreviewEl.innerHTML = '';
 
     const chip = document.createElement('div');
     chip.className = 'attachment-chip';
 
-    const name = document.createElement('span');
-    name.className = 'attachment-chip-name';
-    name.textContent = pendingAttachment.name;
-    chip.appendChild(name);
+    const label = document.createElement('span');
+    label.className = 'attachment-chip-name';
+    label.textContent = statusText ? `${name} - ${statusText}` : name;
+    chip.appendChild(label);
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -100,7 +106,7 @@
 
   attachBtn.addEventListener('click', () => attachmentInputEl.click());
 
-  attachmentInputEl.addEventListener('change', () => {
+  attachmentInputEl.addEventListener('change', async () => {
     const file = attachmentInputEl.files[0];
     if (!file) return;
 
@@ -110,21 +116,44 @@
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      showBanner('That file is too large - please attach something under 3MB for now.');
+      const maxMb = Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024));
+      showBanner(`That file is too large - please attach something under ${maxMb}MB.`);
       attachmentInputEl.value = '';
       return;
     }
 
     hideBanner();
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = String(reader.result).split(',')[1] || '';
-      pendingAttachment = { name: file.name, mimeType: file.type, data: base64 };
-      renderAttachmentChip();
+    pendingAttachment = null;
+    updateSendButtonState();
+    renderAttachmentChip(file.name, 'uploading...');
+
+    const controller = new AbortController();
+    pendingUploadAbort = controller;
+
+    try {
+      const blob = await window.vercelBlobUpload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/attachment-upload',
+        headers: { Authorization: `Bearer ${currentSession.access_token}` },
+        abortSignal: controller.signal,
+        onUploadProgress: ({ percentage }) => {
+          if (pendingUploadAbort === controller) {
+            renderAttachmentChip(file.name, `uploading... ${Math.round(percentage)}%`);
+          }
+        },
+      });
+
+      if (pendingUploadAbort !== controller) return; // removed mid-upload
+      pendingUploadAbort = null;
+      pendingAttachment = { name: file.name, mimeType: file.type, url: blob.url };
+      renderAttachmentChip(file.name);
       updateSendButtonState();
-    };
-    reader.onerror = () => showBanner('Failed to read that file. Please try again.');
-    reader.readAsDataURL(file);
+    } catch (err) {
+      if (controller.signal.aborted) return; // already cleared by clearAttachment
+      pendingUploadAbort = null;
+      showBanner(`Failed to upload that file: ${err.message}`);
+      clearAttachment();
+    }
   });
 
   function renderEmptyState() {

@@ -100,6 +100,27 @@ Deploy. Once it's live, go back to Supabase **Authentication -> URL
 Configuration** and set the Site URL / Redirect URLs to your real
 `https://your-project.vercel.app` URL if you hadn't yet.
 
+#### Enable file attachments (Vercel Blob)
+
+Chat attachments (PDFs, images) upload straight from the browser to Vercel
+Blob storage rather than through the `/api/chat` function - that's what
+lets them exceed Vercel's 4.5MB request body limit. This needs a Blob store
+connected to the project:
+
+1. Project -> **Storage** tab -> **Create Database** -> **Blob**.
+2. Give it a name (e.g. `mirror-edu-attachments`), access **Public**,
+   **Create**.
+3. Vercel automatically adds `BLOB_READ_WRITE_TOKEN` (and related vars) to
+   the project's environment variables - no manual copying needed.
+4. Redeploy so the function picks up the new environment variable.
+
+Equivalently, from the CLI: `vercel blob create-store <name> --access public`
+(run from the project directory, already linked to the Vercel project).
+
+Without this, attaching a file will fail with a clear error rather than
+break silently - `/api/attachment-upload` returns 400/500 if the Blob store
+isn't configured.
+
 ### 7. Verify the deployment
 
 Visit `https://your-project.vercel.app/api/health`. You should see:
