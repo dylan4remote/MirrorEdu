@@ -15,7 +15,9 @@ const SYSTEM_PROMPT =
   'You have a web search tool - use it when the user asks about current events, recent ' +
   'information, or anything you should verify or cite with a source.';
 
-const TOOLS = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }];
+// Basic (non-dynamic-filtering) variant - the newer web_search_20260209 tool
+// relies on programmatic tool calling, which Haiku 4.5 doesn't support.
+const TOOLS = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
