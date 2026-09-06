@@ -18,6 +18,8 @@
 
   const conversationListEl = document.getElementById('conversation-list');
   const messageListEl = document.getElementById('message-list');
+  const messageListInnerEl = document.getElementById('message-list-inner');
+  const scrollBottomBtn = document.getElementById('scroll-bottom-btn');
   const inputEl = document.getElementById('input');
   const sendBtn = document.getElementById('send-btn');
   const newChatBtn = document.getElementById('new-chat-btn');
@@ -40,19 +42,69 @@
   }
 
   function renderEmptyState() {
-    messageListEl.innerHTML = '<div class="empty-state">Start a new conversation below.</div>';
+    messageListInnerEl.innerHTML = '<div class="empty-state">Start a new conversation below.</div>';
   }
 
-  function appendMessage(role, content) {
-    const empty = messageListEl.querySelector('.empty-state');
+  // --- Scroll handling: only auto-follow new content when the user is
+  // already near the bottom, and show a "jump to latest" pill otherwise.
+  const NEAR_BOTTOM_THRESHOLD = 120;
+
+  function isNearBottom() {
+    return (
+      messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight <
+      NEAR_BOTTOM_THRESHOLD
+    );
+  }
+
+  function scrollToBottom(smooth) {
+    messageListEl.scrollTo({ top: messageListEl.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  function updateScrollButton() {
+    const scrolledUp = messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight > 200;
+    scrollBottomBtn.hidden = !scrolledUp;
+  }
+
+  messageListEl.addEventListener('scroll', updateScrollButton);
+  scrollBottomBtn.addEventListener('click', () => scrollToBottom(true));
+
+  function appendMessage(role, content, { animate = false } = {}) {
+    const empty = messageListInnerEl.querySelector('.empty-state');
     if (empty) empty.remove();
 
-    const el = document.createElement('div');
-    el.className = `message ${role}`;
-    el.textContent = content;
-    messageListEl.appendChild(el);
-    messageListEl.scrollTop = messageListEl.scrollHeight;
-    return el;
+    const row = document.createElement('div');
+    row.className = `message-row ${role}`;
+    if (animate) row.classList.add('enter');
+
+    if (role === 'assistant') {
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = 'M';
+      row.appendChild(avatar);
+    }
+
+    const contentEl = document.createElement('div');
+    contentEl.className = role === 'user' ? 'message-content bubble' : 'message-content';
+    contentEl.textContent = content;
+    row.appendChild(contentEl);
+
+    messageListInnerEl.appendChild(row);
+
+    const shouldFollow = isNearBottom();
+    if (shouldFollow) scrollToBottom(false);
+    updateScrollButton();
+
+    return contentEl;
+  }
+
+  function setThinking(contentEl, isThinking) {
+    if (isThinking) {
+      contentEl.classList.add('thinking');
+      contentEl.innerHTML = '<span class="thinking-dots"><span></span><span></span><span></span></span>';
+    } else {
+      contentEl.classList.remove('thinking');
+      contentEl.innerHTML = '';
+    }
   }
 
   async function loadConversations() {
@@ -99,8 +151,10 @@
     if (!data || data.length === 0) {
       renderEmptyState();
     } else {
-      messageListEl.innerHTML = '';
+      messageListInnerEl.innerHTML = '';
       data.forEach((m) => appendMessage(m.role, m.content));
+      scrollToBottom(false);
+      updateScrollButton();
     }
   }
 
@@ -115,6 +169,10 @@
     inputEl.style.height = `${Math.min(inputEl.scrollHeight, 160)}px`;
   }
 
+  function updateSendButtonState() {
+    sendBtn.disabled = !inputEl.value.trim();
+  }
+
   async function sendMessage() {
     const text = inputEl.value.trim();
     if (!text) return;
@@ -124,8 +182,9 @@
     autoGrow();
     sendBtn.disabled = true;
 
-    appendMessage('user', text);
-    const assistantEl = appendMessage('assistant', '');
+    appendMessage('user', text, { animate: true });
+    const assistantEl = appendMessage('assistant', '', { animate: true });
+    setThinking(assistantEl, true);
 
     try {
       const response = await fetch('/api/chat', {
@@ -145,6 +204,7 @@
         } catch (_) {
           // response wasn't JSON; keep the default message
         }
+        assistantEl.classList.remove('thinking');
         assistantEl.classList.add('error');
         assistantEl.textContent = errorMessage;
         return;
@@ -162,8 +222,11 @@
         const { done, value } = await reader.read();
         if (done) break;
         fullText += decoder.decode(value, { stream: true });
+        if (assistantEl.classList.contains('thinking')) setThinking(assistantEl, false);
+        const shouldFollow = isNearBottom();
         assistantEl.textContent = fullText;
-        messageListEl.scrollTop = messageListEl.scrollHeight;
+        if (shouldFollow) scrollToBottom(false);
+        updateScrollButton();
       }
 
       if (isNewConversation) {
@@ -173,10 +236,11 @@
         });
       }
     } catch (err) {
+      assistantEl.classList.remove('thinking');
       assistantEl.classList.add('error');
       assistantEl.textContent = `Network error: ${err.message}`;
     } finally {
-      sendBtn.disabled = false;
+      updateSendButtonState();
     }
   }
 
@@ -187,7 +251,10 @@
   });
 
   sendBtn.addEventListener('click', sendMessage);
-  inputEl.addEventListener('input', autoGrow);
+  inputEl.addEventListener('input', () => {
+    autoGrow();
+    updateSendButtonState();
+  });
   inputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

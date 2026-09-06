@@ -16,12 +16,24 @@
 
   <div class="chat-main">
     <div id="banner" class="banner"></div>
+
     <div id="message-list" class="message-list">
-      <div class="empty-state">Start a new conversation below.</div>
+      <div id="message-list-inner" class="message-list-inner">
+        <div class="empty-state">Start a new conversation below.</div>
+      </div>
+
+      <button id="scroll-bottom-btn" class="scroll-bottom-btn" aria-label="Scroll to latest message" hidden>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 6l5 5 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
-    <div class="composer">
-      <textarea id="input" rows="1" placeholder="Message MirrorEdu..."></textarea>
-      <button id="send-btn" class="btn">Send</button>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea id="input" rows="1" placeholder="Message MirrorEdu..."></textarea>
+        <button id="send-btn" class="send-btn" aria-label="Send message" disabled>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 13V3M8 3L3.5 7.5M8 3l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 </div>
