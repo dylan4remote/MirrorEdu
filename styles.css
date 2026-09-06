@@ -1,4 +1,12 @@
 :root {
+  /* Tells the browser this page is dark-themed, so native UI it renders
+     itself - scrollbars above all - defaults to dark chrome instead of a
+     stark white/light one that clashes with everything around it. This is
+     what actually fixes the scrollbar color; scrollbar-color and
+     ::-webkit-scrollbar below only cover browsers that don't fully honor
+     this, and are kept as a secondary layer. */
+  color-scheme: dark;
+
   --bg: #262624;
   --panel: #1f1e1d;
   --panel-alt: #33322f;
