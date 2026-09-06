@@ -19,6 +19,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--file') args.file = argv[++i];
     else if (argv[i] === '--user-id') args.userId = argv[++i];
+    else if (argv[i] === '--school-only') args.schoolOnly = true;
   }
   return args;
 }
@@ -52,6 +53,14 @@ Write it as organized notes (markdown headings are fine), covering things like:
 - Anything a helpful assistant would be embarrassed not to already know on a new conversation
 
 Leave out one-off trivia, anything time-sensitive that's likely already stale, and anything sensitive (financial account numbers, exact addresses, etc.) beyond what's needed for general context. Be concise - aim for roughly 800-1500 words. Write it in third person ("The user is...") since it will be silently inserted into another assistant's system prompt.`;
+
+const SCHOOL_ONLY_PROMPT = `You will be given the full transcripts of someone's past conversations with an AI assistant. Distill them into a compact background-memory document covering ONLY school, academics, and education-related matters - nothing else.
+
+Include things like: courses and grades, standardized testing (SAT/ACT/etc.) progress and plans, college/university research and application status, school clubs/activities/internships tied to academics, and how they like to be taught or helped with schoolwork (learning style, communication preferences specifically in a tutoring/homework context, any study shortcuts or slash-commands they use).
+
+Explicitly exclude: family/personal life details, physical description, relationships, non-school business or financial interests, fitness, entertainment/media preferences, and anything else not related to school or learning. If a topic straddles both (e.g. a personal essay for a college application), keep only the parts relevant to the application/assignment itself.
+
+Write it as organized notes (markdown headings are fine). Be concise - aim for roughly 500-1000 words. Write in third person ("The user is...") since it will be silently inserted into another assistant's system prompt.`;
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -93,7 +102,7 @@ async function main() {
   const response = await client.messages.create({
     model: ANTHROPIC_MODEL,
     max_tokens: 4096,
-    system: MEMORY_PROMPT,
+    system: args.schoolOnly ? SCHOOL_ONLY_PROMPT : MEMORY_PROMPT,
     messages: [{ role: 'user', content: fullTranscript }],
   });
 
