@@ -58,14 +58,6 @@ Do these in order. Nothing will work until all of them are done.
 2. **Authentication -> Providers -> Email**: should already be enabled by
    default. Decide whether you want "Confirm email" on or off (on = users
    must click a confirmation link before signing in).
-3. **Authentication -> Providers -> Google** (since you asked for Google
-   sign-in):
-   - You need an OAuth Client ID/Secret from [Google Cloud Console](https://console.cloud.google.com/apis/credentials) -> Create Credentials -> OAuth client ID -> Web application.
-   - Supabase's provider settings page shows the exact **Redirect URI** to
-     paste into the Google OAuth client's "Authorized redirect URIs" (it
-     looks like `https://<project-ref>.supabase.co/auth/v1/callback`).
-   - Paste the Google Client ID and Client Secret into Supabase's Google
-     provider settings and enable it.
 
 ### 4. Push this code to GitHub
 

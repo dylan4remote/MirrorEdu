@@ -13,7 +13,6 @@
   const submitBtn = document.getElementById('submit-btn');
   const form = document.getElementById('auth-form');
   const errorBox = document.getElementById('error-box');
-  const googleBtn = document.getElementById('google-btn');
 
   function setMode(newMode) {
     mode = newMode;
@@ -57,14 +56,5 @@
     } finally {
       submitBtn.disabled = false;
     }
-  });
-
-  googleBtn.addEventListener('click', async () => {
-    hideError();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/chat.html` },
-    });
-    if (error) showError(error.message);
   });
 })();
