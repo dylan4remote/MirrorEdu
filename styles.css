@@ -27,6 +27,25 @@
   box-sizing: border-box;
 }
 
+html {
+  background: var(--bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+html::-webkit-scrollbar {
+  width: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -963,16 +982,72 @@ a {
   justify-content: center;
 }
 
-.composer {
+.composer-stack {
   width: 100%;
   max-width: 48rem;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 8px;
+}
+
+.attachment-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-alt);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.attachment-chip-name {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip-remove {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: var(--border-strong);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+
+.attachment-chip-remove:hover {
+  background: var(--danger);
+  color: white;
+}
+
+.composer {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 10px 10px 10px 20px;
+  padding: 8px 10px;
   box-shadow: var(--shadow);
   transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
 }
@@ -980,6 +1055,27 @@ a {
 .composer:focus-within {
   border-color: var(--accent);
   box-shadow: var(--shadow), 0 0 0 3px var(--accent-glow);
+}
+
+.icon-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 1px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+
+.icon-btn:hover {
+  background: var(--panel-alt);
+  color: var(--text);
 }
 
 .composer textarea {

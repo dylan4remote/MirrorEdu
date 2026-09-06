@@ -1,5 +1,6 @@
 // POST /api/chat
-// Body: { conversationId: string|null, message: string }
+// Body: { conversationId: string|null, message: string, attachment?: { name, mimeType, data } }
+//   attachment.data is base64-encoded file content (no "data:" prefix).
 // Header: Authorization: Bearer <supabase access token>
 //
 // Verifies the caller, enforces the per-user daily message cap, calls the
@@ -23,6 +24,18 @@ const SYSTEM_PROMPT =
 // Basic (non-dynamic-filtering) variant - the newer web_search_20260209 tool
 // relies on programmatic tool calling, which Haiku 4.5 doesn't support.
 const TOOLS = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
+
+// Claude reads PDFs and images natively in the same request - no separate
+// OCR/extraction step needed. Capped so the base64 JSON body stays under
+// Vercel's ~4.5MB request limit (base64 inflates raw bytes by ~1.33x).
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+]);
+const MAX_ATTACHMENT_BASE64_CHARS = 4_200_000;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -55,10 +68,27 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { conversationId, message } = req.body || {};
+  const { conversationId, message, attachment } = req.body || {};
   if (!message || typeof message !== 'string' || !message.trim()) {
     res.status(400).json({ error: 'Message is required.' });
     return;
+  }
+
+  let attachmentBlock = null;
+  if (attachment) {
+    const { name, mimeType, data } = attachment;
+    if (!mimeType || !ALLOWED_ATTACHMENT_TYPES.has(mimeType)) {
+      res.status(400).json({ error: 'Unsupported attachment type. Attach a PDF or an image (PNG/JPEG/WEBP/GIF).' });
+      return;
+    }
+    if (!data || typeof data !== 'string' || data.length > MAX_ATTACHMENT_BASE64_CHARS) {
+      res.status(400).json({ error: 'That attachment is too large. Please attach a file under 3MB.' });
+      return;
+    }
+    attachmentBlock =
+      mimeType === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: mimeType, data } }
+        : { type: 'image', source: { type: 'base64', media_type: mimeType, data } };
   }
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -125,11 +155,16 @@ module.exports = async function handler(req, res) {
     activeConversationId = newConversation.id;
   }
 
+  // The attachment itself isn't persisted (messages.content is text-only,
+  // and re-storing file bytes isn't worth it) - just a note that one was
+  // here, so history stays honest about what the reply was based on.
+  const storedMessage = attachment ? `${message}\n\n[Attached file: ${attachment.name || 'attachment'}]` : message;
+
   const { error: insertUserMessageError } = await supabaseAdmin.from('messages').insert({
     conversation_id: activeConversationId,
     user_id: user.id,
     role: 'user',
-    content: message,
+    content: storedMessage,
   });
   if (insertUserMessageError) {
     res.status(500).json({ error: `Failed to save message: ${insertUserMessageError.message}` });
@@ -164,7 +199,11 @@ module.exports = async function handler(req, res) {
       },
     ];
   }
-  const anthropicMessages = [...historyMessages, { role: 'user', content: message }];
+  // Attachments apply only to the message they're sent with - Claude reads
+  // it fully this turn, but it isn't re-sent on later turns (asking a
+  // follow-up question about the same file later means re-attaching it).
+  const currentUserContent = attachmentBlock ? [attachmentBlock, { type: 'text', text: message }] : message;
+  const anthropicMessages = [...historyMessages, { role: 'user', content: currentUserContent }];
 
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',

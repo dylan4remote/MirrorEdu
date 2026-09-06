@@ -27,6 +27,9 @@
   const userEmailEl = document.getElementById('user-email');
   const bannerEl = document.getElementById('banner');
   const chatTitleEl = document.getElementById('chat-title');
+  const attachBtn = document.getElementById('attach-btn');
+  const attachmentInputEl = document.getElementById('attachment-input');
+  const attachmentPreviewEl = document.getElementById('attachment-preview');
 
   userEmailEl.textContent = currentSession.user.email || '';
   userEmailEl.title = currentSession.user.email || '';
@@ -48,6 +51,81 @@
   function hideBanner() {
     bannerEl.classList.remove('visible');
   }
+
+  // --- Attachments: Claude reads PDFs and images directly in the request
+  // (no separate OCR/scanning step), so this just gets the file to /api/chat
+  // as base64. Capped at 3MB raw so the base64 JSON body stays under
+  // Vercel's request size limit.
+  const ALLOWED_ATTACHMENT_TYPES = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+  ]);
+  const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024;
+
+  let pendingAttachment = null;
+
+  function clearAttachment() {
+    pendingAttachment = null;
+    attachmentInputEl.value = '';
+    attachmentPreviewEl.innerHTML = '';
+    attachmentPreviewEl.hidden = true;
+    updateSendButtonState();
+  }
+
+  function renderAttachmentChip() {
+    attachmentPreviewEl.innerHTML = '';
+
+    const chip = document.createElement('div');
+    chip.className = 'attachment-chip';
+
+    const name = document.createElement('span');
+    name.className = 'attachment-chip-name';
+    name.textContent = pendingAttachment.name;
+    chip.appendChild(name);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'attachment-chip-remove';
+    removeBtn.setAttribute('aria-label', 'Remove attachment');
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', clearAttachment);
+    chip.appendChild(removeBtn);
+
+    attachmentPreviewEl.appendChild(chip);
+    attachmentPreviewEl.hidden = false;
+  }
+
+  attachBtn.addEventListener('click', () => attachmentInputEl.click());
+
+  attachmentInputEl.addEventListener('change', () => {
+    const file = attachmentInputEl.files[0];
+    if (!file) return;
+
+    if (!ALLOWED_ATTACHMENT_TYPES.has(file.type)) {
+      showBanner('Unsupported file type. Attach a PDF or an image (PNG/JPEG/WEBP/GIF).');
+      attachmentInputEl.value = '';
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      showBanner('That file is too large - please attach something under 3MB for now.');
+      attachmentInputEl.value = '';
+      return;
+    }
+
+    hideBanner();
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = String(reader.result).split(',')[1] || '';
+      pendingAttachment = { name: file.name, mimeType: file.type, data: base64 };
+      renderAttachmentChip();
+      updateSendButtonState();
+    };
+    reader.onerror = () => showBanner('Failed to read that file. Please try again.');
+    reader.readAsDataURL(file);
+  });
 
   function renderEmptyState() {
     messageListInnerEl.innerHTML = `
@@ -256,19 +334,23 @@
   }
 
   function updateSendButtonState() {
-    sendBtn.disabled = !inputEl.value.trim();
+    sendBtn.disabled = !inputEl.value.trim() && !pendingAttachment;
   }
 
   async function sendMessage() {
-    const text = inputEl.value.trim();
-    if (!text) return;
+    const typed = inputEl.value.trim();
+    const attachment = pendingAttachment;
+    if (!typed && !attachment) return;
+    const text = typed || 'Take a look at this.';
 
     hideBanner();
     inputEl.value = '';
     autoGrow();
+    clearAttachment();
     sendBtn.disabled = true;
 
-    appendMessage('user', text, { animate: true });
+    const displayText = attachment ? `${text}\n\n[Attached file: ${attachment.name}]` : text;
+    appendMessage('user', displayText, { animate: true });
     const assistantEl = appendMessage('assistant', '', { animate: true });
     setThinking(assistantEl, true);
 
@@ -279,7 +361,7 @@
           'Content-Type': 'application/json',
           Authorization: `Bearer ${currentSession.access_token}`,
         },
-        body: JSON.stringify({ conversationId: activeConversationId, message: text }),
+        body: JSON.stringify({ conversationId: activeConversationId, message: text, attachment }),
       });
 
       if (!response.ok) {
