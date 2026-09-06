@@ -125,6 +125,16 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const { data: memoryRow } = await supabaseAdmin
+    .from('user_memory')
+    .select('content')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const systemPrompt = memoryRow?.content
+    ? `${SYSTEM_PROMPT}\n\nBackground context on this specific user, from their prior history. Use it naturally when relevant; don't recite it or mention that you were given it unless asked:\n\n${memoryRow.content}`
+    : SYSTEM_PROMPT;
+
   const client = new Anthropic({ apiKey });
   const anthropicMessages = [
     ...history.map((m) => ({ role: m.role, content: m.content })),
@@ -142,7 +152,7 @@ module.exports = async function handler(req, res) {
     const stream = client.messages.stream({
       model,
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: anthropicMessages,
     });
 

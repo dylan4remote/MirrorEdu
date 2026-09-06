@@ -8,9 +8,28 @@ create table if not exists conversations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null default 'New chat',
+  -- 'chat' = a real conversation, shown in the sidebar.
+  -- 'import' = brought in from a claude.ai export; kept in the database and
+  -- folded into user_memory (see below), but not shown as a browsable thread.
+  source text not null default 'chat',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- A single, evolving block of background context per user, distilled from
+-- their imported history (and anything else worth remembering). Prepended
+-- to the system prompt on every /api/chat request instead of replaying raw
+-- transcripts.
+create table if not exists user_memory (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  content text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+alter table user_memory enable row level security;
+
+create policy "select own memory" on user_memory
+  for select using (auth.uid() = user_id);
 
 -- One row per chat message (both user and assistant turns).
 create table if not exists messages (

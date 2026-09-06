@@ -59,6 +59,7 @@
     const { data, error } = await supabase
       .from('conversations')
       .select('id, title, updated_at')
+      .eq('source', 'chat')
       .order('updated_at', { ascending: false });
 
     if (error) {
