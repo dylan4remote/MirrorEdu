@@ -32,6 +32,12 @@
 
   let activeConversationId = null;
 
+  marked.setOptions({ breaks: true, gfm: true });
+
+  function renderAssistantContent(el, text) {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  }
+
   function showBanner(message) {
     bannerEl.textContent = message;
     bannerEl.classList.add('visible');
@@ -84,8 +90,12 @@
     }
 
     const contentEl = document.createElement('div');
-    contentEl.className = role === 'user' ? 'message-content bubble' : 'message-content';
-    contentEl.textContent = content;
+    contentEl.className = role === 'user' ? 'message-content bubble' : 'message-content markdown';
+    if (role === 'assistant' && content) {
+      renderAssistantContent(contentEl, content);
+    } else {
+      contentEl.textContent = content;
+    }
     row.appendChild(contentEl);
 
     messageListInnerEl.appendChild(row);
@@ -123,12 +133,60 @@
     (data || []).forEach((conv) => {
       const item = document.createElement('div');
       item.className = 'conversation-item';
-      item.textContent = conv.title || 'New chat';
       item.dataset.id = conv.id;
       if (conv.id === activeConversationId) item.classList.add('active');
+
+      const titleEl = document.createElement('span');
+      titleEl.className = 'conversation-title';
+      titleEl.textContent = conv.title || 'New chat';
+      item.appendChild(titleEl);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'conversation-delete-btn';
+      deleteBtn.setAttribute('aria-label', 'Delete chat');
+      deleteBtn.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6.5 4V2.5a1 1 0 011-1h1a1 1 0 011 1V4M4.5 4l.5 9a1 1 0 001 1h4a1 1 0 001-1l.5-9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteConversation(conv.id, item);
+      });
+      item.appendChild(deleteBtn);
+
       item.addEventListener('click', () => openConversation(conv.id));
       conversationListEl.appendChild(item);
     });
+  }
+
+  async function deleteConversation(id, itemEl) {
+    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
+
+    try {
+      const response = await fetch('/api/conversation', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${currentSession.access_token}`,
+        },
+        body: JSON.stringify({ conversationId: id }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Failed to delete chat (${response.status}).`;
+        try {
+          const body = await response.json();
+          if (body.error) errorMessage = body.error;
+        } catch (_) {
+          // response wasn't JSON; keep the default message
+        }
+        showBanner(errorMessage);
+        return;
+      }
+
+      itemEl.remove();
+      if (id === activeConversationId) startNewChat();
+    } catch (err) {
+      showBanner(`Network error: ${err.message}`);
+    }
   }
 
   async function openConversation(id) {
@@ -224,7 +282,7 @@
         fullText += decoder.decode(value, { stream: true });
         if (assistantEl.classList.contains('thinking')) setThinking(assistantEl, false);
         const shouldFollow = isNearBottom();
-        assistantEl.textContent = fullText;
+        renderAssistantContent(assistantEl, fullText);
         if (shouldFollow) scrollToBottom(false);
         updateScrollButton();
       }
