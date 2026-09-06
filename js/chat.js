@@ -175,7 +175,7 @@
   messageListEl.addEventListener('scroll', updateScrollButton);
   scrollBottomBtn.addEventListener('click', () => scrollToBottom(true));
 
-  function appendMessage(role, content, { animate = false } = {}) {
+  function appendMessage(role, content, { animate = false, live = false } = {}) {
     const empty = messageListInnerEl.querySelector('.empty-state');
     if (empty) empty.remove();
 
@@ -185,11 +185,10 @@
 
     if (role === 'assistant') {
       const avatar = document.createElement('div');
-      avatar.className = 'avatar';
-      avatar.innerHTML =
-        '<div class="avatar-mirror-glass"><div class="avatar-mirror-shine"></div></div>' +
-        '<div class="avatar-mirror-neck"></div>' +
-        '<div class="avatar-mirror-base"></div>';
+      // The shine only animates while `live` - i.e. this turn is still
+      // being generated (see sendMessage). Reloaded history never gets it.
+      avatar.className = live ? 'avatar is-active' : 'avatar';
+      avatar.innerHTML = '<div class="avatar-shine"></div>';
       row.appendChild(avatar);
     }
 
@@ -354,7 +353,7 @@
 
     const displayText = attachment ? `${text}\n\n[Attached file: ${attachment.name}]` : text;
     appendMessage('user', displayText, { animate: true });
-    const assistantEl = appendMessage('assistant', '', { animate: true });
+    const assistantEl = appendMessage('assistant', '', { animate: true, live: true });
     setThinking(assistantEl, true);
 
     try {
@@ -412,6 +411,10 @@
       assistantEl.classList.add('error');
       assistantEl.textContent = `Network error: ${err.message}`;
     } finally {
+      // Stop the shine once the reply is done generating, however that
+      // happened (success, an API error, or a network failure).
+      const avatarEl = assistantEl.parentElement && assistantEl.parentElement.querySelector('.avatar');
+      if (avatarEl) avatarEl.classList.remove('is-active');
       updateSendButtonState();
     }
   }

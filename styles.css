@@ -763,82 +763,51 @@ a {
   justify-content: flex-end;
 }
 
-/* Assistant avatar: a small hand mirror that bobs gently and catches a
-   light sweep across its glass, in place of a static lettermark. */
+/* Assistant avatar: a plain mirror square. Still while idle; while the
+   reply is being generated (.is-active, toggled in js/chat.js), a diagonal
+   highlight sweeps between the top-left and bottom-right corners. */
 .avatar {
+  position: relative;
   flex-shrink: 0;
   width: 30px;
   height: 30px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 14px -4px var(--accent-glow);
   margin-top: 2px;
-  animation: avatar-float 3.2s ease-in-out infinite;
-}
-
-.avatar-mirror-glass {
-  position: relative;
-  width: 16px;
-  height: 18px;
-  border-radius: 50% / 58%;
-  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 14px -3px var(--accent-glow);
   overflow: hidden;
 }
 
-.avatar-mirror-shine {
+.avatar-shine {
   position: absolute;
-  top: -70%;
-  left: -70%;
-  width: 34%;
-  height: 240%;
-  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.9), transparent);
-  transform: rotate(22deg);
-  animation: avatar-shine-sweep 2.8s ease-in-out infinite;
+  top: 50%;
+  left: 50%;
+  width: 170%;
+  height: 24%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(45deg) translateX(-55%);
 }
 
-.avatar-mirror-neck {
-  width: 3px;
-  height: 3px;
-  background: var(--accent-hover);
-}
-
-.avatar-mirror-base {
-  width: 9px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent-hover);
-}
-
-@keyframes avatar-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
+.avatar.is-active .avatar-shine {
+  opacity: 1;
+  animation: avatar-shine-sweep 1.6s ease-in-out infinite alternate;
 }
 
 @keyframes avatar-shine-sweep {
   0% {
-    left: -70%;
-  }
-  55% {
-    left: 106%;
+    transform: translate(-50%, -50%) rotate(45deg) translateX(-55%);
   }
   100% {
-    left: 106%;
+    transform: translate(-50%, -50%) rotate(45deg) translateX(55%);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .avatar,
-  .avatar-mirror-shine {
+  .avatar.is-active .avatar-shine {
     animation: none;
+    opacity: 0;
   }
 }
 
