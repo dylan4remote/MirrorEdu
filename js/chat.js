@@ -185,10 +185,10 @@
 
     if (role === 'assistant') {
       const avatar = document.createElement('div');
-      // The shine only animates while `live` - i.e. this turn is still
+      // The glow only animates while `live` - i.e. this turn is still
       // being generated (see sendMessage). Reloaded history never gets it.
       avatar.className = live ? 'avatar is-active' : 'avatar';
-      avatar.innerHTML = '<div class="avatar-shine"></div>';
+      avatar.innerHTML = '<span class="avatar-mark">M</span><div class="avatar-glow"></div>';
       row.appendChild(avatar);
     }
 

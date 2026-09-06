@@ -763,9 +763,9 @@ a {
   justify-content: flex-end;
 }
 
-/* Assistant avatar: a plain mirror square. Still while idle; while the
-   reply is being generated (.is-active, toggled in js/chat.js), a diagonal
-   highlight sweeps between the top-left and bottom-right corners. */
+/* Assistant avatar: a square mirror mark with an "M". Still while idle;
+   while the reply is being generated (.is-active, toggled in js/chat.js),
+   the whole square breathes with light instead of a moving streak. */
 .avatar {
   position: relative;
   flex-shrink: 0;
@@ -776,36 +776,62 @@ a {
   border: 1.5px solid rgba(255, 255, 255, 0.28);
   box-shadow: 0 0 14px -4px var(--accent-glow);
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
 }
 
-.avatar-shine {
+.avatar-mark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.94);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.avatar-glow {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 170%;
-  height: 24%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  inset: 0;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 55%, transparent 78%);
+  mix-blend-mode: screen;
   opacity: 0;
-  transform: translate(-50%, -50%) rotate(45deg) translateX(-55%);
 }
 
-.avatar.is-active .avatar-shine {
-  opacity: 1;
-  animation: avatar-shine-sweep 1.6s ease-in-out infinite alternate;
+.avatar.is-active {
+  animation: avatar-pulse 1.7s ease-in-out infinite;
 }
 
-@keyframes avatar-shine-sweep {
-  0% {
-    transform: translate(-50%, -50%) rotate(45deg) translateX(-55%);
-  }
+.avatar.is-active .avatar-glow {
+  animation: avatar-glow-pulse 1.7s ease-in-out infinite;
+}
+
+@keyframes avatar-pulse {
+  0%,
   100% {
-    transform: translate(-50%, -50%) rotate(45deg) translateX(55%);
+    box-shadow: 0 0 14px -4px var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 20px 1px var(--accent-glow);
+  }
+}
+
+@keyframes avatar-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.9;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .avatar.is-active .avatar-shine {
+  .avatar.is-active {
+    animation: none;
+  }
+  .avatar.is-active .avatar-glow {
     animation: none;
     opacity: 0;
   }
