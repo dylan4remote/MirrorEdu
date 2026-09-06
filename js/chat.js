@@ -26,11 +26,13 @@
   const signOutBtn = document.getElementById('sign-out-btn');
   const userEmailEl = document.getElementById('user-email');
   const bannerEl = document.getElementById('banner');
+  const chatTitleEl = document.getElementById('chat-title');
 
   userEmailEl.textContent = currentSession.user.email || '';
   userEmailEl.title = currentSession.user.email || '';
 
   let activeConversationId = null;
+  const conversationTitles = new Map();
 
   marked.setOptions({ breaks: true, gfm: true });
 
@@ -48,7 +50,28 @@
   }
 
   function renderEmptyState() {
-    messageListInnerEl.innerHTML = '<div class="empty-state">Start a new conversation below.</div>';
+    messageListInnerEl.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-kicker">// start here</span>
+        <h2 class="empty-headline">What are we studying today?</h2>
+        <p class="empty-sub">Ask a question, paste your notes, or pick a starting point.</p>
+        <div class="suggestion-row">
+          <button type="button" class="suggestion-chip" data-prompt="Explain this concept step by step: ">Explain a concept</button>
+          <button type="button" class="suggestion-chip" data-prompt="Summarize this into clear bullet points: ">Summarize my notes</button>
+          <button type="button" class="suggestion-chip" data-prompt="Walk me through solving this problem: ">Solve a problem</button>
+          <button type="button" class="suggestion-chip" data-prompt="Quiz me with a few practice questions on: ">Quiz me</button>
+        </div>
+      </div>
+    `;
+    messageListInnerEl.querySelectorAll('.suggestion-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        inputEl.value = chip.dataset.prompt;
+        autoGrow();
+        updateSendButtonState();
+        inputEl.focus();
+        inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      });
+    });
   }
 
   // --- Scroll handling: only auto-follow new content when the user is
@@ -131,6 +154,9 @@
 
     conversationListEl.innerHTML = '';
     (data || []).forEach((conv) => {
+      const title = conv.title || 'New chat';
+      conversationTitles.set(conv.id, title);
+
       const item = document.createElement('div');
       item.className = 'conversation-item';
       item.dataset.id = conv.id;
@@ -138,7 +164,7 @@
 
       const titleEl = document.createElement('span');
       titleEl.className = 'conversation-title';
-      titleEl.textContent = conv.title || 'New chat';
+      titleEl.textContent = title;
       item.appendChild(titleEl);
 
       const deleteBtn = document.createElement('button');
@@ -191,6 +217,7 @@
 
   async function openConversation(id) {
     activeConversationId = id;
+    chatTitleEl.textContent = conversationTitles.get(id) || 'Chat';
     document.querySelectorAll('.conversation-item').forEach((el) => {
       el.classList.toggle('active', el.dataset.id === id);
     });
@@ -218,6 +245,7 @@
 
   function startNewChat() {
     activeConversationId = null;
+    chatTitleEl.textContent = 'MirrorEdu';
     document.querySelectorAll('.conversation-item').forEach((el) => el.classList.remove('active'));
     renderEmptyState();
   }
@@ -292,6 +320,7 @@
         document.querySelectorAll('.conversation-item').forEach((el) => {
           el.classList.toggle('active', el.dataset.id === activeConversationId);
         });
+        chatTitleEl.textContent = conversationTitles.get(activeConversationId) || 'Chat';
       }
     } catch (err) {
       assistantEl.classList.remove('thinking');

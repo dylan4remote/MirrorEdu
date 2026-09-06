@@ -8,9 +8,19 @@
   --text-dim: #8e8e86;
   --accent: #d97757;
   --accent-hover: #c76b4d;
+  --accent-glow: rgba(217, 119, 87, 0.35);
   --danger: #e5645a;
   --user-bubble: #33322f;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+  /* Shared type/space/motion tokens - both pages draw from the same system
+     so new screens (and future chat features) stay consistent by default. */
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 24px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -19,18 +29,145 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
+  position: relative;
+}
+
+/* Ambient color-block glow, shared by both pages. Sits behind everything;
+   only visible through translucent chrome (the sidebar, chat header) so it
+   never competes with the reading surface. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(600px circle at 12% 15%, rgba(217, 119, 87, 0.18), transparent 60%),
+    radial-gradient(560px circle at 88% 20%, rgba(217, 119, 87, 0.1), transparent 55%),
+    radial-gradient(720px circle at 50% 100%, rgba(255, 255, 255, 0.05), transparent 60%);
+  animation: aurora-drift 22s ease-in-out infinite alternate;
+}
+
+/* Film-grain texture over the whole app - the low-opacity, non-interactive
+   layer that keeps flat dark UI from looking sterile. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-3%, 2%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
 }
 
 a {
   color: var(--accent);
 }
 
+/* ---------- Intro (login page loading sequence) ---------- */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: var(--bg);
+  cursor: pointer;
+  transition: opacity 600ms var(--ease), transform 600ms var(--ease);
+}
+
+.intro-mark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(30px, 7vw, 60px);
+  letter-spacing: -0.02em;
+  color: var(--text);
+  opacity: 0;
+  animation: intro-in 700ms var(--ease) forwards 150ms;
+}
+
+.intro-track {
+  width: min(220px, 60vw);
+  height: 2px;
+  background: var(--border-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  opacity: 0;
+  animation: intro-in 500ms var(--ease) forwards 450ms;
+}
+
+.intro-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: intro-fill 1050ms var(--ease) forwards 550ms;
+}
+
+.intro.intro-done {
+  opacity: 0;
+  transform: scale(1.03);
+  pointer-events: none;
+}
+
+@keyframes intro-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes intro-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro,
+  .intro-mark,
+  .intro-track,
+  .intro-fill {
+    animation: none !important;
+    opacity: 1;
+  }
+}
+
 /* ---------- Auth page ---------- */
 
 .auth-wrap {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -38,18 +175,103 @@ a {
   padding: 24px;
 }
 
+.auth-grid {
+  width: 100%;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 64px;
+  align-items: center;
+}
+
+.auth-hero {
+  opacity: 0;
+  animation: auth-in 700ms var(--ease) forwards 200ms;
+}
+
+.auth-kicker {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+
+.auth-headline {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+
+.auth-lede {
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1.6;
+  max-width: 34ch;
+  margin: 0;
+}
+
 .auth-card {
   width: 100%;
   max-width: 380px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 32px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  animation: auth-in 700ms var(--ease) forwards 350ms;
+}
+
+@keyframes auth-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-hero,
+  .auth-card {
+    animation: none !important;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 860px) {
+  .auth-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    text-align: center;
+  }
+
+  .auth-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .auth-card {
+    margin: 0 auto;
+  }
 }
 
 .brand {
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   margin-bottom: 4px;
   text-align: center;
 }
@@ -65,7 +287,7 @@ a {
   display: flex;
   gap: 4px;
   background: var(--panel-alt);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 4px;
   margin-bottom: 20px;
 }
@@ -79,6 +301,7 @@ a {
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
 }
 
 .tab-btn.active {
@@ -100,32 +323,40 @@ a {
 .field input {
   width: 100%;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--panel-alt);
   color: var(--text);
   font-size: 14px;
+  font-family: var(--font-body);
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
 }
 
 .field input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .btn {
   width: 100%;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: none;
   background: var(--accent);
   color: white;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: background 160ms var(--ease), transform 120ms var(--ease);
 }
 
 .btn:hover {
   background: var(--accent-hover);
+}
+
+.btn:active {
+  transform: scale(0.98);
 }
 
 .btn:disabled {
@@ -160,7 +391,7 @@ a {
   background: rgba(255, 107, 107, 0.12);
   border: 1px solid rgba(255, 107, 107, 0.4);
   color: var(--danger);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: 13px;
   margin-bottom: 14px;
@@ -174,6 +405,8 @@ a {
 /* ---------- Chat page ---------- */
 
 .app {
+  position: relative;
+  z-index: 1;
   display: flex;
   height: 100vh;
 }
@@ -181,10 +414,24 @@ a {
 .sidebar {
   width: 260px;
   flex-shrink: 0;
-  background: var(--panel);
+  background: rgba(31, 30, 29, 0.86);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, var(--accent-glow), transparent);
+  opacity: 0.6;
 }
 
 .sidebar-header {
@@ -200,23 +447,45 @@ a {
 
 .new-chat-btn {
   width: 100%;
-  padding: 9px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
   background: var(--panel-alt);
   color: var(--text);
   cursor: pointer;
   font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease), transform 120ms var(--ease);
 }
 
 .new-chat-btn:hover {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.new-chat-btn:active {
+  transform: scale(0.98);
+}
+
+.sidebar-block-label {
+  padding: 16px 16px 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .conversation-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 4px 8px 8px;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
@@ -239,11 +508,12 @@ a {
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-dim);
   font-size: 14px;
   margin-bottom: 2px;
+  transition: background 140ms var(--ease), color 140ms var(--ease);
 }
 
 .conversation-item:hover {
@@ -253,6 +523,7 @@ a {
 .conversation-item.active {
   background: var(--panel-alt);
   color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .conversation-title {
@@ -321,6 +592,33 @@ a {
   flex-direction: column;
   min-width: 0;
   background: var(--bg);
+  position: relative;
+}
+
+/* Slim, extensible toolbar - room for future controls (model switcher,
+   settings, search) to sit on the right of the title without a redesign. */
+.chat-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(38, 38, 36, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.chat-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Outer element owns the scrollbar and spans full width; the inner element
@@ -366,7 +664,59 @@ a {
 .empty-state {
   margin: auto;
   text-align: center;
+  max-width: 32rem;
+  padding: 0 16px;
+}
+
+.empty-kicker {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.empty-headline {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+
+.empty-sub {
   color: var(--text-dim);
+  font-size: 15px;
+  margin: 0 0 24px;
+}
+
+.suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.suggestion-chip {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-alt);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease), transform 120ms var(--ease);
+}
+
+.suggestion-chip:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+  transform: translateY(-1px);
 }
 
 .message-row {
@@ -396,17 +746,19 @@ a {
 
 .avatar {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(217, 119, 87, 0.16);
-  color: var(--accent);
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-display);
   font-size: 13px;
   font-weight: 700;
   margin-top: 2px;
+  box-shadow: 0 0 20px -6px var(--accent-glow);
 }
 
 .message-content {
@@ -423,8 +775,9 @@ a {
 .message-content.bubble {
   max-width: 34rem;
   background: var(--user-bubble);
+  border: 1px solid var(--border);
   padding: 10px 16px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   white-space: pre-wrap;
 }
 
@@ -449,6 +802,7 @@ a {
 .message-content.markdown h1,
 .message-content.markdown h2,
 .message-content.markdown h3 {
+  font-family: var(--font-display);
   color: var(--accent);
   line-height: 1.3;
   margin: 20px 0 10px;
@@ -503,7 +857,8 @@ a {
 
 .message-content.markdown pre {
   background: var(--panel-alt);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
   overflow-x: auto;
   margin: 0 0 12px;
@@ -616,9 +971,15 @@ a {
   gap: 8px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   padding: 10px 10px 10px 20px;
   box-shadow: var(--shadow);
+  transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--shadow), 0 0 0 3px var(--accent-glow);
 }
 
 .composer textarea {
@@ -644,21 +1005,26 @@ a {
 
 .send-btn {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   border: none;
   background: var(--accent);
-  color: var(--panel);
+  color: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 150ms ease, opacity 150ms ease;
+  transition: background 150ms ease, opacity 150ms ease, transform 120ms ease;
 }
 
 .send-btn:hover:not(:disabled) {
   background: var(--accent-hover);
+  transform: scale(1.05);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .send-btn:disabled {
@@ -680,6 +1046,10 @@ a {
 }
 
 @media (max-width: 640px) {
+  .chat-header {
+    padding: 12px 16px;
+  }
+
   .message-list-inner {
     padding: 20px 12px 32px;
     gap: 24px;
