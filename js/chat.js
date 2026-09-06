@@ -186,7 +186,10 @@
     if (role === 'assistant') {
       const avatar = document.createElement('div');
       avatar.className = 'avatar';
-      avatar.textContent = 'M';
+      avatar.innerHTML =
+        '<div class="avatar-mirror-glass"><div class="avatar-mirror-shine"></div></div>' +
+        '<div class="avatar-mirror-neck"></div>' +
+        '<div class="avatar-mirror-base"></div>';
       row.appendChild(avatar);
     }
 
