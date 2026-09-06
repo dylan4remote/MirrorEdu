@@ -11,7 +11,11 @@ const { getSupabaseAdmin } = require('../lib/supabaseAdmin');
 const { verifyUser } = require('../lib/verifyUser');
 
 const SYSTEM_PROMPT =
-  'You are the assistant inside MirrorEdu, a chat product. Be helpful, clear, and concise.';
+  'You are the assistant inside MirrorEdu, a chat product. Be helpful, clear, and concise. ' +
+  'You have a web search tool - use it when the user asks about current events, recent ' +
+  'information, or anything you should verify or cite with a source.';
+
+const TOOLS = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }];
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -136,10 +140,24 @@ module.exports = async function handler(req, res) {
     : SYSTEM_PROMPT;
 
   const client = new Anthropic({ apiKey });
-  const anthropicMessages = [
-    ...history.map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
-  ];
+
+  // Prompt caching: every turn otherwise resends the whole conversation at
+  // full price. Marking the end of prior history as a cache breakpoint means
+  // only the newest message costs full input price - everything before it is
+  // billed as a 0.1x cache read. 1h TTL because chat replies are often more
+  // than 5 minutes apart.
+  const historyMessages = history.map((m) => ({ role: m.role, content: m.content }));
+  const lastHistoryMessage = historyMessages[historyMessages.length - 1];
+  if (lastHistoryMessage) {
+    lastHistoryMessage.content = [
+      {
+        type: 'text',
+        text: lastHistoryMessage.content,
+        cache_control: { type: 'ephemeral', ttl: '1h' },
+      },
+    ];
+  }
+  const anthropicMessages = [...historyMessages, { role: 'user', content: message }];
 
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',
@@ -148,20 +166,32 @@ module.exports = async function handler(req, res) {
   });
 
   let fullText = '';
+  let messages = anthropicMessages;
   try {
-    const stream = client.messages.stream({
-      model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: anthropicMessages,
-    });
+    // Server-side web search can span multiple searches within one turn; if
+    // Claude hits the tool's internal iteration cap mid-search, the API
+    // returns stop_reason "pause_turn" instead of finishing. Resume by
+    // sending the paused turn back until it actually completes.
+    for (;;) {
+      const stream = client.messages.stream({
+        model,
+        max_tokens: 4096,
+        system: [
+          { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral', ttl: '1h' } },
+        ],
+        messages,
+        tools: TOOLS,
+      });
 
-    stream.on('text', (delta) => {
-      fullText += delta;
-      res.write(delta);
-    });
+      stream.on('text', (delta) => {
+        fullText += delta;
+        res.write(delta);
+      });
 
-    await stream.finalMessage();
+      const finalMessage = await stream.finalMessage();
+      if (finalMessage.stop_reason !== 'pause_turn') break;
+      messages = [...messages, { role: 'assistant', content: finalMessage.content }];
+    }
   } catch (error) {
     let errorMessage;
     if (error instanceof Anthropic.AuthenticationError) {
